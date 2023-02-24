@@ -5,9 +5,7 @@ import org.Aizuked.TestObjPackage.Man;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class DeepCopyUtil {
@@ -25,7 +23,7 @@ public class DeepCopyUtil {
         T copy;
 
         try {
-            Man src = new Man("ro", 2004, List.of("asd"));
+            Man src = new Man("ro", 2004, List.of("asd", "bfe"));
             Man dst = new Man("as", 1, List.of("123"));
 
             //Массивы
@@ -53,6 +51,19 @@ public class DeepCopyUtil {
 
             //Коллекции
 
+
+            //Интерфейсы без конструктора, Set.of, List.of, Map.of
+            //Set.of, List.of -> toArray
+            //Map.of -> entrySet -> ofEntries
+            field = Man.class.getDeclaredField("favoriteBooks");
+            field.setAccessible(true);
+            List<?> tempList = (List<?>) field.get(src);
+
+            List<Object> listOfInts = List.of(tempList.toArray());
+            field.set(dst, listOfInts);
+            System.out.println();
+
+
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -61,8 +72,8 @@ public class DeepCopyUtil {
         //V  Проверка на примитивную упаковку -> //Обертки примитивных типов
         //V  Проверка на массивы -> //Массивы
         //X  Проверка на коллекции -> //Коллекции
-        //X  Проверка на интерфейсы без конструктора
-        //V  Проверка на сложный тип -> deepCopy()
+        //V  Проверка на интерфейсы без конструктора
+        //X  Проверка на сложный тип Man или (List.of(List.of("1"), List.of("2")) -> deepCopy()
         original.getClass();
 
         Constructor<?> ctor = getLeastArgsObjConstructor(original);

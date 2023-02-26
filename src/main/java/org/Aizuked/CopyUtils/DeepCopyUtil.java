@@ -5,20 +5,56 @@ import org.Aizuked.TestObjPackage.Man;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 public class DeepCopyUtil {
-    public static <T> T deepCopy(T obj) {
-        if (obj == null)
+    //Возможены оверхеды мб структуру на хэшах
+    private static final ThreadLocal<ArrayList<Object>> deepCopyObjects = new ThreadLocal<>();
+    private static final ThreadLocal<ArrayList<Integer>> selfReferenceFields = new ThreadLocal<>();
+
+    public static <T> T deepCopy(T o) {
+        if (o == null)
             return null;
 
-        T newObj = instantiateNewCopyObj(obj);
-        fillNewObj(obj, newObj);
-        //Заполнить T;
+        T newObj = instantiateNewCopyObj(o);
+        fillNewObj(o, newObj);
 
+        deepCopyObjects.get().add(newObj);
+        if (deepCopyObjects.get().get(0) == newObj) {
+            deepCopyObjects.set(new ArrayList<>());
+            selfReferenceFields.set(new ArrayList<>());
+        }
         return newObj;
+    }
+
+    private static void getSelfReferences(Object o) {
+        //Не гарантирована уникальность хэш-кодов :(
+        //Рекурсивно ресурсоёмко
+        ArrayList<Integer> toCheckHashCodes = new ArrayList<>();
+        ArrayList<Integer> selfReferences = new ArrayList<>();
+        Object objToCheck = null;
+        for (Field field : o.getClass().getFields()) {
+            if (!Modifier.isFinal(field.getModifiers())) {
+                try {
+                    objToCheck = field.get(o);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+                if (objToCheck != null) {
+                    int currHashCode = System.identityHashCode(objToCheck);
+                    if (toCheckHashCodes.contains(currHashCode) &&
+                            !selfReferenceFields.get().contains(currHashCode)) {
+                        selfReferences.add(currHashCode);
+                    } else {
+                        toCheckHashCodes.add(currHashCode);
+                    }
+                }
+            }
+        }
+        selfReferenceFields.get().addAll(selfReferences);
     }
 
     private static <T> T fillNewObj(T src, T dst) {
@@ -32,8 +68,6 @@ public class DeepCopyUtil {
             //X  Проверка на сложный тип Man -> deepCopy() else -> deepCopy()
 
             //СДЕЛАТЬ ПРОВЕРКУ НА PROPERTIES.FINAL
-            Man src = new Man("ro", 2004, List.of("asd", "bfe"));
-            Man dst = new Man("as", 1, List.of("123"));
 
             //Ссылка на себя || как сделать на часть себя??
             Field field = Man.class.getDeclaredField("self");
@@ -43,7 +77,6 @@ public class DeepCopyUtil {
             }
 
             //Массивы
-            src.setNeighboringRoomNumbers(new int[]{1, 2});
             field = Man.class.getDeclaredField("neighboringRoomNumbers");
             field.setAccessible(true);
             Object srcArr = field.get(src);
@@ -78,9 +111,6 @@ public class DeepCopyUtil {
             testLinkedHashSet.add(1d);
             testLinkedHashSet.add(0.2);
 
-            src.setTestArrayList(testArrayList);
-            src.setTestLinkedHashSet(testLinkedHashSetOnSet);
-
             field = Man.class.getDeclaredField("testLinkedHashSet");
             field.setAccessible(true);
             Collection srcCollection = (Collection) field.get(src);
@@ -99,7 +129,6 @@ public class DeepCopyUtil {
             testHashMap.put(3, 4);
             HashMap<Integer, Integer> testHashMapOnMap = new HashMap<>(Map.of(1, 2, 3, 4));
 
-            src.setTestHashMap(testHashMap);
 
             field = Man.class.getDeclaredField("testHashMap");
             field.setAccessible(true);
@@ -180,9 +209,43 @@ public class DeepCopyUtil {
         return blankArgs;
     }
 
-    private static Object createNewObj(Object o, Field data) {
+    private static Object createNewObj(Object o, Field fieldData, ArrayList<Integer> selfReferences) {
+        boolean possibleSelfRef = selfReferences.size() > 0;
+        boolean fillObj = fieldData != null;
+        Object newObj = null;
 
-        return null;
+        if (!possibleSelfRef) {
+            Class<?> type = o.getClass();
+            if (!type.isPrimitive() || !(type == Double.class || type == Float.class || type == Long.class ||
+                    type == Integer.class || type == Short.class || type == Character.class ||
+                    type == Byte.class || type == Boolean.class)) {
+                Constructor<?> ctor = getLeastArgsObjConstructor(o);
+                try {
+                    newObj = ctor.newInstance(getLeastArgsObjConstructor(o));
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        } else {
+            if (selfReferences.contains(System.identityHashCode(o))) {
+                newObj = ;
+            } else {
+
+            }
+        }
+
+        //fillObj?
+
+
+        //V  Ссылка на себя
+        //V  Проверка на примитивный тип данных -> //Примитивные типы
+        //V  Проверка на примитивную упаковку -> //Обертки примитивных типов
+        //V  Проверка на массивы -> //Массивы
+        //V  Проверка на коллекции -> //Коллекции
+        //V  Проверка на интерфейсы без конструктора
+        //X  Проверка на сложный тип Man -> deepCopy() else -> deepCopy()
+
+        return newObj;
     }
 
     private static class ConstructorsNotFoundException extends RuntimeException {

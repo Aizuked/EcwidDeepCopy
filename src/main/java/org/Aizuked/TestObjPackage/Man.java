@@ -1,17 +1,42 @@
 package org.Aizuked.TestObjPackage;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
 public class Man extends Animal {
     private String name;
-    private Integer age;
+    private int age;
     private List<String> favoriteBooks;
     private int[] neighboringRoomNumbers;
     private String[] favoriteIceCreamToppings;
     private ArrayList<Animal> animals;
     private Man self;
+    ArrayList<String> testArrayList;
+    HashMap<Integer, Integer> testHashMap;
+    LinkedHashSet<Double> testLinkedHashSet;
+
+    public ArrayList<String> getTestArrayList() {
+        return testArrayList;
+    }
+
+    public void setTestArrayList(ArrayList<String> testArrayList) {
+        this.testArrayList = testArrayList;
+    }
+
+    public HashMap<Integer, Integer> getTestHashMap() {
+        return testHashMap;
+    }
+
+    public void setTestHashMap(HashMap<Integer, Integer> testHashMap) {
+        this.testHashMap = testHashMap;
+    }
+
+    public LinkedHashSet<Double> getTestLinkedHashSet() {
+        return testLinkedHashSet;
+    }
+
+    public void setTestLinkedHashSet(LinkedHashSet<Double> testLinkedHashSet) {
+        this.testLinkedHashSet = testLinkedHashSet;
+    }
 
     public Man(String name, int age, List<String> favoriteBooks) {
         this.name = name;

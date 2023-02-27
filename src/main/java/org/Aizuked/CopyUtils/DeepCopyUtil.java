@@ -290,15 +290,15 @@ public class DeepCopyUtil {
         if (o.getClass().isPrimitive()) {
             Class<?> primitiveClass = o.getClass();
             if (primitiveClass == Integer.TYPE) {
-                return 0;
+                return toTransformObj != null ? (Integer) toTransformObj : 0;
             } else if (primitiveClass == Byte.TYPE) {
-                return (byte) 0;
+                return toTransformObj != null ? (Byte) toTransformObj : (byte) 0;
             } else if (primitiveClass == Short.TYPE) {
-                return (short) 0;
+                return toTransformObj != null ? (Short) toTransformObj : (short) 0;
             } else if (primitiveClass == Boolean.TYPE) {
-                return false;
+                return toTransformObj != null ? (Boolean) toTransformObj : null;
             } else if (primitiveClass == Long.TYPE) {
-                return 0L;
+                return toTransformObj != null ? (Long) toTransformObj : (Long) 0;
             } else if (primitiveClass == Float.TYPE) {
                 return 0f;
             } else if (primitiveClass == Double.TYPE) {

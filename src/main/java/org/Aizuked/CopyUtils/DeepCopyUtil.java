@@ -12,8 +12,9 @@ import java.util.stream.Collectors;
 
 public class DeepCopyUtil {
     //Возможены оверхеды мб структуру на хэшах
-    private static final ThreadLocal<ArrayList<Object>> deepCopyObjects = new ThreadLocal<>();
+    private static final ThreadLocal<HashMap<Integer, Object>> deepCopyObjects = new ThreadLocal<>();
     private static final ThreadLocal<ArrayList<Integer>> selfReferenceFields = new ThreadLocal<>();
+    private static final ThreadLocal<HashMap<Field, Object>> stillNeedToGetReferenced = new ThreadLocal<>();
 
     public static <T> T deepCopy(T o) {
         if (o == null)
@@ -22,11 +23,16 @@ public class DeepCopyUtil {
         T newObj = instantiateNewCopyObj(o);
         fillNewObj(o, newObj);
 
-        deepCopyObjects.get().add(newObj);
-        if (deepCopyObjects.get().get(0) == newObj) {
-            deepCopyObjects.set(new ArrayList<>());
+
+
+        if (deepCopyObjects.get().size() != 0 && deepCopyObjects.get().get(0) == newObj) {
+            //Добавить проверку на полное заполнение по хэшам
+            //Для случая референса на себя, который не было возможности заполнить при изначальном проходе
+            deepCopyObjects.set(new HashMap<>());
             selfReferenceFields.set(new ArrayList<>());
         }
+
+        deepCopyObjects.get().put(System.identityHashCode(newObj), newObj);
         return newObj;
     }
 
@@ -37,7 +43,7 @@ public class DeepCopyUtil {
         ArrayList<Integer> selfReferences = new ArrayList<>();
         Object objToCheck = null;
         for (Field field : o.getClass().getFields()) {
-            if (!Modifier.isFinal(field.getModifiers())) {
+            if (!Modifier.isFinal(field.getModifiers()) && !field.getClass().isPrimitive()) {
                 try {
                     objToCheck = field.get(o);
                 } catch (Exception e) {
@@ -55,6 +61,13 @@ public class DeepCopyUtil {
             }
         }
         selfReferenceFields.get().addAll(selfReferences);
+    }
+
+    private static boolean isPrimitiveOrWrapper(Object o) {
+        Class<?> type = o.getClass();
+        return type.isPrimitive() || type == Double.class || type == Float.class ||
+                type == Long.class || type == Integer.class || type == Short.class ||
+                type == Character.class || type == Byte.class || type == Boolean.class;
     }
 
     private static <T> T fillNewObj(T src, T dst) {
@@ -209,30 +222,49 @@ public class DeepCopyUtil {
         return blankArgs;
     }
 
-    private static Object createNewObj(Object o, Field fieldData, ArrayList<Integer> selfReferences) {
-        boolean possibleSelfRef = selfReferences.size() > 0;
-        boolean fillObj = fieldData != null;
+    private static Object createNewObj(Object o, Field givenField) {
+        givenField.setAccessible(true);
+        boolean possibleSelfRef = selfReferenceFields.get().size() > 0;
+        boolean needsToBeFilled = givenField != null;
+        boolean isPrimitiveOrWrapper = isPrimitiveOrWrapper(o);
         Object newObj = null;
 
-        if (!possibleSelfRef) {
-            Class<?> type = o.getClass();
-            if (!type.isPrimitive() || !(type == Double.class || type == Float.class || type == Long.class ||
-                    type == Integer.class || type == Short.class || type == Character.class ||
-                    type == Byte.class || type == Boolean.class)) {
-                Constructor<?> ctor = getLeastArgsObjConstructor(o);
-                try {
-                    newObj = ctor.newInstance(getLeastArgsObjConstructor(o));
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
+        //Проверка на ссылку, указывающую на себя или свою часть
+        if (possibleSelfRef) {
+            int hashCodeToCheck = System.identityHashCode(o);
+            Object copiedReference = deepCopyObjects.get().get(hashCodeToCheck);
+            if (copiedReference != null) {
+                return needsToBeFilled ? copiedReference : null;
             }
-        } else {
-            if (selfReferences.contains(System.identityHashCode(o))) {
-                newObj = ;
-            } else {
-
+            //Объект для референса ещё не был создан, но возможно что будет
+            else if (selfReferenceFields.get().contains(hashCodeToCheck)) {
+                //Плейсхолдер для примитивов, null для объектов
+                stillNeedToGetReferenced.get().put(givenField, o);
+                return createPrimitive(o);
             }
         }
+        //Тут уже точно не референс на себя,
+        if (!isPrimitiveOrWrapper) {
+            Constructor<?> ctor = getLeastArgsObjConstructor(o);
+            try {
+                newObj = ctor.newInstance(createBlankArgsForGivenConstructor(ctor));
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            try {
+                 newObj = createPrimitive(o);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        if (needsToBeFilled) {
+
+        }
+
+        return newObj;
+
 
         //fillObj?
 
@@ -248,6 +280,37 @@ public class DeepCopyUtil {
         return newObj;
     }
 
+    private static Object createPrimitive (Object o, Field field) {
+        Object toTransformObj = null;
+        try {
+            toTransformObj = field != null ? field.get(o) : null;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        if (o.getClass().isPrimitive()) {
+            Class<?> primitiveClass = o.getClass();
+            if (primitiveClass == Integer.TYPE) {
+                return 0;
+            } else if (primitiveClass == Byte.TYPE) {
+                return (byte) 0;
+            } else if (primitiveClass == Short.TYPE) {
+                return (short) 0;
+            } else if (primitiveClass == Boolean.TYPE) {
+                return false;
+            } else if (primitiveClass == Long.TYPE) {
+                return 0L;
+            } else if (primitiveClass == Float.TYPE) {
+                return 0f;
+            } else if (primitiveClass == Double.TYPE) {
+                return 0d;
+            } else if (primitiveClass == Character.TYPE) {
+                return 0;
+            } else {
+                return null;
+            }
+        }
+        return null;
+    }
     private static class ConstructorsNotFoundException extends RuntimeException {
         ConstructorsNotFoundException(String... msg) {
             super(Arrays.toString(msg));

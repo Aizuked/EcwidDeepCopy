@@ -24,7 +24,6 @@ public class DeepCopyUtil {
         fillNewObj(o, newObj);
 
 
-
         if (deepCopyObjects.get().size() != 0 && deepCopyObjects.get().get(0) == newObj) {
             //Добавить проверку на полное заполнение по хэшам
             //Для случая референса на себя, который не было возможности заполнить при изначальном проходе
@@ -253,7 +252,7 @@ public class DeepCopyUtil {
             }
         } else {
             try {
-                 newObj = createPrimitive(o);
+                newObj = createPrimitive(o);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -276,41 +275,44 @@ public class DeepCopyUtil {
         //V  Проверка на коллекции -> //Коллекции
         //V  Проверка на интерфейсы без конструктора
         //X  Проверка на сложный тип Man -> deepCopy() else -> deepCopy()
-
-        return newObj;
     }
 
-    private static Object createPrimitive (Object o, Field field) {
-        Object toTransformObj = null;
-        try {
-            toTransformObj = field != null ? field.get(o) : null;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+    private static Object createPrimitive(Object o) {
+        //
+        //Object o - результат field.get() или POJO.class <- норм ваще так
+
+        //Если поступает автобокснутый Integer = 1 -> null
+        //                             int.class   -> int
+        Class<?> classInQuestion = o.getClass() == Class.class ? (Class<?>) o : o.getClass();
+        if (classInQuestion == Integer.TYPE || classInQuestion == Integer.class) {
+            return classInQuestion == null ? (int) o : 0;
+        } else if (classInQuestion == Byte.TYPE || classInQuestion == Byte.class) {
+            return classInQuestion == null ? (byte) o : (byte) 0;
+        } else if (classInQuestion == Short.TYPE || classInQuestion == Short.class) {
+            return classInQuestion == null ? (short) o : (short) 0;
+        } else if (classInQuestion == Boolean.TYPE || classInQuestion == Boolean.class) {
+            return classInQuestion == null ? (boolean) o : false;
+        } else if (classInQuestion == Long.TYPE || classInQuestion == Long.class) {
+            return classInQuestion == null ? (long) o : (long) 0;
+        } else if (classInQuestion == Float.TYPE || classInQuestion == Float.class) {
+            return classInQuestion == null ? (float) o : (float) 0;
+        } else if (classInQuestion == Double.TYPE || classInQuestion == Double.class) {
+            return classInQuestion == null ? (double) o : (double) 0;
+        } else if (classInQuestion == Character.TYPE || classInQuestion == Character.class) {
+            return classInQuestion == null ? (char) o : (char) ' ';
+        } else {
+            return null;
         }
-        if (o.getClass().isPrimitive()) {
-            Class<?> primitiveClass = o.getClass();
-            if (primitiveClass == Integer.TYPE) {
-                return toTransformObj != null ? (Integer) toTransformObj : 0;
-            } else if (primitiveClass == Byte.TYPE) {
-                return toTransformObj != null ? (Byte) toTransformObj : (byte) 0;
-            } else if (primitiveClass == Short.TYPE) {
-                return toTransformObj != null ? (Short) toTransformObj : (short) 0;
-            } else if (primitiveClass == Boolean.TYPE) {
-                return toTransformObj != null ? (Boolean) toTransformObj : null;
-            } else if (primitiveClass == Long.TYPE) {
-                return toTransformObj != null ? (Long) toTransformObj : (Long) 0;
-            } else if (primitiveClass == Float.TYPE) {
-                return 0f;
-            } else if (primitiveClass == Double.TYPE) {
-                return 0d;
-            } else if (primitiveClass == Character.TYPE) {
-                return 0;
-            } else {
-                return null;
-            }
-        }
-        return null;
     }
+
+    private static Object createString(Object o) {
+        //Так-то они неизменяемые, и пересоздаются в памяти по подобию данного референса,
+        //но, возможно, сборщик мусора не сможет удалить объект если на его поле ссылаются?
+        String copy = (String) o;
+        copy = String.copyValueOf(copy.toCharArray());
+        return copy;
+    }
+
     private static class ConstructorsNotFoundException extends RuntimeException {
         ConstructorsNotFoundException(String... msg) {
             super(Arrays.toString(msg));

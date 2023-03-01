@@ -62,9 +62,9 @@ public class DeepCopyUtil {
         selfReferenceFields.get().addAll(selfReferences);
     }
 
-    private static boolean isPrimitiveOrWrapper(Object o) {
+    private static boolean isWrapper(Object o) {
         Class<?> type = o.getClass();
-        return type.isPrimitive() || type == Double.class || type == Float.class ||
+        return type == Double.class || type == Float.class ||
                 type == Long.class || type == Integer.class || type == Short.class ||
                 type == Character.class || type == Byte.class || type == Boolean.class;
     }
@@ -127,7 +127,7 @@ public class DeepCopyUtil {
             field.setAccessible(true);
             Collection srcCollection = (Collection) field.get(src);
             Constructor<?> testCtor = getLeastArgsObjConstructor(field.get(src));
-            Collection testCollection = (Collection) testCtor.newInstance();
+            Collection<Object> testCollection = (Collection<Object>) testCtor.newInstance();
             for (var entry : srcCollection) {
                 testCollection.add(deepCopy(entry));
             }
@@ -145,7 +145,6 @@ public class DeepCopyUtil {
             field = Man.class.getDeclaredField("testHashMap");
             field.setAccessible(true);
             Map<?, ?> mapObject = (Map<?, ?>) field.get(src);
-            Constructor<?> testCtorMap = getLeastArgsObjConstructor(field.get(src));
             Map<?, ?> newMap = mapObject
                     .entrySet()
                     .stream()
@@ -158,16 +157,25 @@ public class DeepCopyUtil {
             //Set.of, List.of -> toArray
             //Map.of -> entrySet -> ofEntries
             //switch-case по типу
-            //Поскольку .of методы возвращают Immutable объекты не обязательно делать deepCopy??
-            field = Man.class.getDeclaredField("favoriteBooks");
-            field.setAccessible(true);
-            List<?> tempList = (List<?>) field.get(src);
-
-            List<Object> listOfInts = List.of(tempList.toArray());
-            field.set(dst, listOfInts);
-            System.out.println();
 
 
+
+/*            if (possibleSelfRef) {
+                int hashCodeToCheck = System.identityHashCode(o);
+                Object copiedReference = deepCopyObjects.get().get(hashCodeToCheck);
+                if (copiedReference != null) {
+                    return needsToBeFilled ? copiedReference : null;
+                }
+                //Объект для референса ещё не был создан, но возможно что будет
+                else if (selfReferenceFields.get().contains(hashCodeToCheck)) {
+                    //Плейсхолдер для примитивов, null для объектов
+                    stillNeedToGetReferenced.get().put(givenField, o);
+                    if (isWrapper || oClass.isPrimitive())
+                        return createPrimitive(o);
+                    else
+                        return null;
+                }
+            }*/
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -221,52 +229,17 @@ public class DeepCopyUtil {
         return blankArgs;
     }
 
-    private static Object createNewObj(Object o, Field givenField) {
-        givenField.setAccessible(true);
-        boolean possibleSelfRef = selfReferenceFields.get().size() > 0;
-        boolean needsToBeFilled = givenField != null;
-        boolean isPrimitiveOrWrapper = isPrimitiveOrWrapper(o);
+    private static Object createNewObj(Object o) {
         Object newObj = null;
+        Class<?> oClass = o.getClass();
 
-        //Проверка на ссылку, указывающую на себя или свою часть
-        if (possibleSelfRef) {
-            int hashCodeToCheck = System.identityHashCode(o);
-            Object copiedReference = deepCopyObjects.get().get(hashCodeToCheck);
-            if (copiedReference != null) {
-                return needsToBeFilled ? copiedReference : null;
-            }
-            //Объект для референса ещё не был создан, но возможно что будет
-            else if (selfReferenceFields.get().contains(hashCodeToCheck)) {
-                //Плейсхолдер для примитивов, null для объектов
-                stillNeedToGetReferenced.get().put(givenField, o);
-                return createPrimitive(o);
-            }
-        }
-        //Тут уже точно не референс на себя,
-        if (!isPrimitiveOrWrapper) {
-            Constructor<?> ctor = getLeastArgsObjConstructor(o);
-            try {
-                newObj = ctor.newInstance(createBlankArgsForGivenConstructor(ctor));
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        } else {
-            try {
-                newObj = createPrimitive(o);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }
+/*        if (isWrapper(o)) {
+            return createPrimitive(o);
+        } else if () {
 
-        if (needsToBeFilled) {
-
-        }
+        }*/
 
         return newObj;
-
-
-        //fillObj?
-
 
         //V  Ссылка на себя
         //V  Проверка на примитивный тип данных -> //Примитивные типы
@@ -274,38 +247,98 @@ public class DeepCopyUtil {
         //V  Проверка на массивы -> //Массивы
         //V  Проверка на коллекции -> //Коллекции
         //V  Проверка на интерфейсы без конструктора
+        //V  Проверка на строки
         //X  Проверка на сложный тип Man -> deepCopy() else -> deepCopy()
+
     }
 
-    private static Object createPrimitive(Object o) {
-        //
-        //Object o - результат field.get() или POJO.class <- норм ваще так
+    private static Object createFilledCollection(Object o) {
+        Constructor<?> testCtor = getLeastArgsObjConstructor(o);
+        Collection copy = null;
 
-        //Если поступает автобокснутый Integer = 1 -> null
-        //                             int.class   -> int
-        Class<?> classInQuestion = o.getClass() == Class.class ? (Class<?>) o : o.getClass();
-        if (classInQuestion == Integer.TYPE || classInQuestion == Integer.class) {
-            return classInQuestion == null ? (int) o : 0;
-        } else if (classInQuestion == Byte.TYPE || classInQuestion == Byte.class) {
-            return classInQuestion == null ? (byte) o : (byte) 0;
-        } else if (classInQuestion == Short.TYPE || classInQuestion == Short.class) {
-            return classInQuestion == null ? (short) o : (short) 0;
-        } else if (classInQuestion == Boolean.TYPE || classInQuestion == Boolean.class) {
-            return classInQuestion == null ? (boolean) o : false;
-        } else if (classInQuestion == Long.TYPE || classInQuestion == Long.class) {
-            return classInQuestion == null ? (long) o : (long) 0;
-        } else if (classInQuestion == Float.TYPE || classInQuestion == Float.class) {
-            return classInQuestion == null ? (float) o : (float) 0;
-        } else if (classInQuestion == Double.TYPE || classInQuestion == Double.class) {
-            return classInQuestion == null ? (double) o : (double) 0;
-        } else if (classInQuestion == Character.TYPE || classInQuestion == Character.class) {
-            return classInQuestion == null ? (char) o : (char) ' ';
+        try {
+            copy = (Collection) testCtor.newInstance();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        for (var entry : (Collection) o) {
+            copy.add(deepCopy(entry));
+        }
+        return copy;
+    }
+
+    private static Object createFilledMap(Object o) {
+        Map<?, ?> mapObject = (Map<?, ?>) o;
+        Map<?, ?> newMap = mapObject
+                .entrySet()
+                .stream()
+                .collect(Collectors.toMap(deepCopy(Map.Entry::getKey), deepCopy(Map.Entry::getValue)));
+        return null;
+    }
+    private static Object createFilledImmutableCollection(Object o) {
+        //Поскольку .of методы возвращают Immutable объекты не обязательно делать deepCopy?
+        if (o instanceof List<?> copy) {
+            return List.of(deepCopy(copy.toArray()));
+        } else if (o instanceof Set<?> copy) {
+            return Set.of(deepCopy(copy.toArray()));
+        } else if (o instanceof Map<?, ?> copy) {
+            return copy
+                .entrySet()
+                .stream()
+                .collect(Collectors.toMap(deepCopy(Map.Entry::getKey), deepCopy(Map.Entry::getValue)));
+        } else {
+            return null;
+        }
+    }
+    private static Object createPlaceHolderPrimitiveOrWrapper(Class<?> cls) {
+        //Object o - из Constructor.
+        if (cls == Integer.class || cls == int.class) {
+            return (int) 0;
+        } else if (cls == Byte.class || cls == byte.class) {
+            return (byte) 0;
+        } else if (cls == Short.class || cls == short.class) {
+            return (short) 0;
+        } else if (cls == Boolean.class || cls == boolean.class) {
+            return (boolean) false;
+        } else if (cls == Long.class || cls == long.class) {
+            return (long) 0;
+        } else if (cls == Float.class || cls == float.class) {
+            return (float) 0;
+        } else if (cls == Double.class || cls == double.class) {
+            return (double) 0;
+        } else if (cls == Character.class || cls == char.class) {
+            return (char) ' ';
         } else {
             return null;
         }
     }
 
-    private static Object createString(Object o) {
+    private static Object createFilledPrimitiveOrWrapper(Object o) {
+        //
+        Class<?> classInQuestion = o.getClass();
+        if (classInQuestion == Integer.class) {
+            return (int) o;
+        } else if (classInQuestion == Byte.class) {
+            return (byte) o;
+        } else if (classInQuestion == Short.class) {
+            return (short) o;
+        } else if (classInQuestion == Boolean.class) {
+            return (boolean) o;
+        } else if (classInQuestion == Long.class) {
+            return (long) o;
+        } else if (classInQuestion == Float.class) {
+            return (float) o;
+        } else if (classInQuestion == Double.class) {
+            return (double) o;
+        } else if (classInQuestion == Character.class) {
+            return (char) o;
+        } else {
+            return null;
+        }
+    }
+
+    private static Object createFilledString(Object o) {
         //Так-то они неизменяемые, и пересоздаются в памяти по подобию данного референса,
         //но, возможно, сборщик мусора не сможет удалить объект если на его поле ссылаются?
         String copy = (String) o;

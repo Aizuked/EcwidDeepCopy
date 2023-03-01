@@ -10,6 +10,7 @@ import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 
 public class CopyUtilsTests {
@@ -17,10 +18,10 @@ public class CopyUtilsTests {
     public void shallowCopyTest() {
         Man man1 = new Man("Robert", 18, List.of("Book1", "Book2", "Book3"));
         man1.setNeighboringRoomNumbers(new int[]{10, 20});
-        man1.setNumberOfLegs((short)2);
+        man1.setNumberOfLegs((short) 2);
         man1.setParentNames(List.of("John", "Diane"));
         man1.setAbleToSpeak(false);
-        man1.setFavoriteIceCreamToppings(new String[] {"None", "Chocolate"});
+        man1.setFavoriteIceCreamToppings(new String[]{"None", "Chocolate"});
         man1.setSelf(man1);
         man1.setAnimals(new ArrayList<>(List.of(new Dog(man1))));
 
@@ -55,7 +56,7 @@ public class CopyUtilsTests {
     public void copySuccessTest() {
         Man man1 = new Man("Robert", 18, List.of("Book1", "Book2", "Book3"));
         man1.setNeighboringRoomNumbers(new int[]{10, 20});
-        man1.setNumberOfLegs((short)2);
+        man1.setNumberOfLegs((short) 2);
         man1.setParentNames(List.of("John", "Diane"));
         man1.setAbleToSpeak(true);
 

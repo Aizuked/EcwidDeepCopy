@@ -7,7 +7,6 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 public class DeepCopyUtil {
@@ -182,37 +181,17 @@ public class DeepCopyUtil {
         return dst;
     }
 
-    private static <T> T instantiateNewCopyObj(T original) {
-        T copy;
-        original.getClass();
+    private static Constructor<?> getLeastArgsObjConstructor(Object o) {
+        Constructor<?>[] constructors = o.getClass().getConstructors();
+        Constructor<?> shortestCtor = constructors[0];
 
-        Constructor<?> ctor = getLeastArgsObjConstructor(original);
-        Object[] blankArgs = ctor.getParameterTypes().length != 0 ?
-                createBlankArgsForGivenConstructor(ctor) : null;
-
-
-        try {
-            copy = (T) ctor.newInstance(blankArgs);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+        for (var ctor : constructors) {
+            if (ctor.getParameterTypes().length < shortestCtor.getParameterTypes().length) {
+                shortestCtor = ctor;
+            }
         }
 
-
-        return copy;
-    }
-
-    private static Constructor<?> getLeastArgsObjConstructor(Object obj) {
-        Constructor<?>[] constructors = obj.getClass().getConstructors();
-
-        if (constructors.length > 0) {
-            AtomicReference<Constructor<?>> atomicConstructor = new AtomicReference<Constructor<?>>(constructors[0]);
-            Arrays.stream(constructors).forEach(i -> {
-                if (i.getParameterTypes().length < atomicConstructor.get().getParameterTypes().length)
-                    atomicConstructor.set(i);
-            });
-            return atomicConstructor.get();
-        } else
-            throw new DeepCopyUtil.ConstructorsNotFoundException("No suitable constructor is found!");
+        return shortestCtor;
     }
 
     private static Object[] createBlankArgsForGivenConstructor(Constructor<?> ctor) {
@@ -220,16 +199,37 @@ public class DeepCopyUtil {
         Object[] blankArgs = new Object[ctorParamTypes.length];
 
         for (int i = 0; i < ctorParamTypes.length; i++) {
-            //blankArgs[i] = createNewObj();
-            if (ctorParamTypes[i].isPrimitive()) {
-
-            }
+            blankArgs[i] = ctorParamTypes[i].isPrimitive() ?
+                    createPlaceHolderPrimitiveOrWrapper(ctorParamTypes[i]) : null;
         }
 
         return blankArgs;
     }
 
-    private static Object createNewObj(Object o) {
+    private static Object createPlaceHolderPrimitiveOrWrapper(Class<?> cls) {
+        //Object o - из Constructor.
+        if (cls == Integer.class || cls == int.class) {
+            return (int) 0;
+        } else if (cls == Byte.class || cls == byte.class) {
+            return (byte) 0;
+        } else if (cls == Short.class || cls == short.class) {
+            return (short) 0;
+        } else if (cls == Boolean.class || cls == boolean.class) {
+            return (boolean) false;
+        } else if (cls == Long.class || cls == long.class) {
+            return (long) 0;
+        } else if (cls == Float.class || cls == float.class) {
+            return (float) 0;
+        } else if (cls == Double.class || cls == double.class) {
+            return (double) 0;
+        } else if (cls == Character.class || cls == char.class) {
+            return (char) ' ';
+        } else {
+            return null;
+        }
+    }
+
+    private static Object createObjCopy(Object o) {
         Object newObj = null;
         Class<?> oClass = o.getClass();
 
@@ -270,12 +270,12 @@ public class DeepCopyUtil {
 
     private static Object createFilledMap(Object o) {
         Map<?, ?> mapObject = (Map<?, ?>) o;
-        Map<?, ?> newMap = mapObject
+        return mapObject
                 .entrySet()
                 .stream()
                 .collect(Collectors.toMap(deepCopy(Map.Entry::getKey), deepCopy(Map.Entry::getValue)));
-        return null;
     }
+
     private static Object createFilledImmutableCollection(Object o) {
         //Поскольку .of методы возвращают Immutable объекты не обязательно делать deepCopy?
         if (o instanceof List<?> copy) {
@@ -283,32 +283,10 @@ public class DeepCopyUtil {
         } else if (o instanceof Set<?> copy) {
             return Set.of(deepCopy(copy.toArray()));
         } else if (o instanceof Map<?, ?> copy) {
-            return copy
-                .entrySet()
-                .stream()
-                .collect(Collectors.toMap(deepCopy(Map.Entry::getKey), deepCopy(Map.Entry::getValue)));
-        } else {
-            return null;
-        }
-    }
-    private static Object createPlaceHolderPrimitiveOrWrapper(Class<?> cls) {
-        //Object o - из Constructor.
-        if (cls == Integer.class || cls == int.class) {
-            return (int) 0;
-        } else if (cls == Byte.class || cls == byte.class) {
-            return (byte) 0;
-        } else if (cls == Short.class || cls == short.class) {
-            return (short) 0;
-        } else if (cls == Boolean.class || cls == boolean.class) {
-            return (boolean) false;
-        } else if (cls == Long.class || cls == long.class) {
-            return (long) 0;
-        } else if (cls == Float.class || cls == float.class) {
-            return (float) 0;
-        } else if (cls == Double.class || cls == double.class) {
-            return (double) 0;
-        } else if (cls == Character.class || cls == char.class) {
-            return (char) ' ';
+            return Map.ofEntries((Map.Entry<?, ?>[]) copy.entrySet()
+                    .stream()
+                    .map(i -> Map.entry(deepCopy(i.getKey()), deepCopy(i.getValue())))
+                    .toArray());
         } else {
             return null;
         }
@@ -346,10 +324,5 @@ public class DeepCopyUtil {
         return copy;
     }
 
-    private static class ConstructorsNotFoundException extends RuntimeException {
-        ConstructorsNotFoundException(String... msg) {
-            super(Arrays.toString(msg));
-        }
-    }
 
 }

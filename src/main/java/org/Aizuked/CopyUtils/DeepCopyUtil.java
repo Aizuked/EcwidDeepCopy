@@ -9,56 +9,61 @@ import java.lang.reflect.Modifier;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * До Jep 411, в SecurityManager Policy:
+ * grant  {
+ * permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+ * }, иначе Field::setAccessible() -> SecurityException.
+ */
+
+
 public class DeepCopyUtil {
-    //Возможены оверхеды мб структуру на хэшах
-    private static final ThreadLocal<HashMap<Integer, Object>> deepCopyObjects = new ThreadLocal<>();
-    private static final ThreadLocal<ArrayList<Integer>> selfReferenceFields = new ThreadLocal<>();
-    private static final ThreadLocal<HashMap<Field, Object>> stillNeedToGetReferenced = new ThreadLocal<>();
+    private static final ThreadLocal<HashMap<Integer, Object>> copiedObjectReferences = new ThreadLocal<>();
 
     public static <T> T deepCopy(T o) {
         if (o == null)
             return null;
 
-        T newObj = instantiateNewCopyObj(o);
+        //getSelfReferences(o);
+
+        T newObj = null;//instantiateNewCopyObj(o);
         fillNewObj(o, newObj);
 
 
-        if (deepCopyObjects.get().size() != 0 && deepCopyObjects.get().get(0) == newObj) {
+        if (copiedObjectReferences.get().get(0) == newObj) {
             //Добавить проверку на полное заполнение по хэшам
             //Для случая референса на себя, который не было возможности заполнить при изначальном проходе
-            deepCopyObjects.set(new HashMap<>());
-            selfReferenceFields.set(new ArrayList<>());
+            //deepCopyObjects.set(new HashMap<>());
+            //selfReferenceFields.set(new ArrayList<>());
         }
 
-        deepCopyObjects.get().put(System.identityHashCode(newObj), newObj);
+        copiedObjectReferences.get().put(System.identityHashCode(newObj), newObj);
         return newObj;
     }
 
-    private static void getSelfReferences(Object o) {
-        //Не гарантирована уникальность хэш-кодов :(
-        //Рекурсивно ресурсоёмко
+    private static void getSelfReferences(Object o) throws IllegalAccessException {
+        //System.identityHashCode не гарантирует уникальность хэш-кодов.
         ArrayList<Integer> toCheckHashCodes = new ArrayList<>();
         ArrayList<Integer> selfReferences = new ArrayList<>();
-        Object objToCheck = null;
-        for (Field field : o.getClass().getFields()) {
-            if (!Modifier.isFinal(field.getModifiers()) && !field.getClass().isPrimitive()) {
-                try {
-                    objToCheck = field.get(o);
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-                if (objToCheck != null) {
-                    int currHashCode = System.identityHashCode(objToCheck);
-                    if (toCheckHashCodes.contains(currHashCode) &&
-                            !selfReferenceFields.get().contains(currHashCode)) {
-                        selfReferences.add(currHashCode);
-                    } else {
-                        toCheckHashCodes.add(currHashCode);
+        if (!(o instanceof Map<?, ?> || o instanceof Collection<?> || isWrapper(o))) {
+            for (Field field : o.getClass().getFields()) {
+                if (!Modifier.isFinal(field.getModifiers()) && !field.getClass().isPrimitive()) {
+                    Object objToCheck = field.get(o);
+                    if (objToCheck != null) {
+                        int currHashCode = System.identityHashCode(objToCheck);
+//                        if (toCheckHashCodes.contains(currHashCode) &&
+//                                !selfReferenceFields.get().contains(currHashCode)) {
+//                            selfReferences.add(currHashCode);
+//                        } else {
+//                            toCheckHashCodes.add(currHashCode);
+//                        }
                     }
                 }
             }
+        } else {
+            //copiedObjectReferences
         }
-        selfReferenceFields.get().addAll(selfReferences);
+        //selfReferenceFields.get().addAll(selfReferences);
     }
 
     private static boolean isWrapper(Object o) {
@@ -200,14 +205,14 @@ public class DeepCopyUtil {
 
         for (int i = 0; i < ctorParamTypes.length; i++) {
             blankArgs[i] = ctorParamTypes[i].isPrimitive() ?
-                    createPlaceHolderPrimitiveOrWrapper(ctorParamTypes[i]) : null;
+                    createPlaceHolderPrimitive(ctorParamTypes[i]) : null;
         }
 
         return blankArgs;
     }
 
-    private static Object createPlaceHolderPrimitiveOrWrapper(Class<?> cls) {
-        //Object o - из Constructor.
+    /***/
+    private static Object createPlaceHolderPrimitive(Class<?> cls) {
         if (cls == Integer.class || cls == int.class) {
             return (int) 0;
         } else if (cls == Byte.class || cls == byte.class) {
@@ -241,17 +246,31 @@ public class DeepCopyUtil {
 
         return newObj;
 
-        //V  Ссылка на себя
-        //V  Проверка на примитивный тип данных -> //Примитивные типы
-        //V  Проверка на примитивную упаковку -> //Обертки примитивных типов
-        //V  Проверка на массивы -> //Массивы
-        //V  Проверка на коллекции -> //Коллекции
-        //V  Проверка на интерфейсы без конструктора
-        //V  Проверка на строки
+        //X  Ссылка на себя
+        //М  Проверка на примитивный тип данных
+        //М  Проверка на примитивную упаковку
+        //М  Проверка на массивы
+        //М  Проверка на коллекции
+        //М  Проверка на интерфейсы без конструктора
+        //М  Проверка на строки
         //X  Проверка на сложный тип Man -> deepCopy() else -> deepCopy()
 
     }
 
+    /***/
+    public static Object createFilledArray(Object o) {
+        //Возможно нужно дергать param1 = field.getType().getComponentType() для Array.newInstance(param1, arrLen)
+        int arrLen = Array.getLength(o);
+        Object array = Array.newInstance(o.getClass().getComponentType(), arrLen);
+
+        for (int i = 0; i < arrLen; i++) {
+            Array.set(array, i, deepCopy(Array.get(o, i)));
+        }
+
+        return array;
+    }
+
+    /***/
     private static Object createFilledCollection(Object o) {
         Constructor<?> testCtor = getLeastArgsObjConstructor(o);
         Collection copy = null;
@@ -268,6 +287,7 @@ public class DeepCopyUtil {
         return copy;
     }
 
+    /***/
     private static Object createFilledMap(Object o) {
         Map<?, ?> mapObject = (Map<?, ?>) o;
         return mapObject
@@ -276,6 +296,7 @@ public class DeepCopyUtil {
                 .collect(Collectors.toMap(deepCopy(Map.Entry::getKey), deepCopy(Map.Entry::getValue)));
     }
 
+    /***/
     private static Object createFilledImmutableCollection(Object o) {
         //Поскольку .of методы возвращают Immutable объекты не обязательно делать deepCopy?
         if (o instanceof List<?> copy) {
@@ -292,8 +313,8 @@ public class DeepCopyUtil {
         }
     }
 
+    /***/
     private static Object createFilledPrimitiveOrWrapper(Object o) {
-        //
         Class<?> classInQuestion = o.getClass();
         if (classInQuestion == Integer.class) {
             return (int) o;
@@ -316,9 +337,10 @@ public class DeepCopyUtil {
         }
     }
 
+    /***/
     private static Object createFilledString(Object o) {
-        //Так-то они неизменяемые, и пересоздаются в памяти по подобию данного референса,
-        //но, возможно, сборщик мусора не сможет удалить объект если на его поле ссылаются?
+        //String - неизменяемый объект, пересоздаваемый в памяти по подобию изначального референса.
+        //Сможет ли сбощик мусора уничтожить использующий одинаковую ссылку на строку неиспользуемый объект?
         String copy = (String) o;
         copy = String.copyValueOf(copy.toCharArray());
         return copy;

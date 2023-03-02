@@ -4,12 +4,12 @@ import org.Aizuked.CopyUtils.DeepCopyUtil;
 import org.Aizuked.TestObjPackage.Man;
 
 import java.io.*;
-import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 
 public class Main {
     public static void main(String[] args) throws IOException, ClassNotFoundException {
+
+
 
         Man man1 = new Man("Robert", 18, List.of("Book1", "Book2", "Book3"));
 

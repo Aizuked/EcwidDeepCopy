@@ -15,34 +15,39 @@ import java.util.stream.Collectors;
  * permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
  * }, иначе Field::setAccessible() -> SecurityException.
  */
-
+//агрегация - особый случай ассоциации
 
 public class DeepCopyUtil {
-    private static final ThreadLocal<HashMap<Integer, Object>> copiedObjectReferences = new ThreadLocal<>();
+    //HashCode объекта поля изначального объекта -> {Field              : Object}
+    //  используется при проверке для копирования    объекта копирования  референс скопированного объекта
+    private static Integer originalObjHashCode;
+    private static final ThreadLocal<HashMap<Integer, HashMap<Field, Object>>> originallySelfReferencedObjects = new ThreadLocal<>();
 
     public static <T> T deepCopy(T o) {
         if (o == null)
             return null;
 
-        //getSelfReferences(o);
+        if (originalObjHashCode == null)
+            originalObjHashCode = System.identityHashCode(o);
 
-        T newObj = null;//instantiateNewCopyObj(o);
+        //Первый метод.
+        T newObj = null;
         fillNewObj(o, newObj);
 
 
-        if (copiedObjectReferences.get().get(0) == newObj) {
-            //Добавить проверку на полное заполнение по хэшам
-            //Для случая референса на себя, который не было возможности заполнить при изначальном проходе
-            //deepCopyObjects.set(new HashMap<>());
-            //selfReferenceFields.set(new ArrayList<>());
-        }
+        //Добавление в allReferencesOfCopiedObjects.
+        //Проверка является ли это оригинальным объектом ->
+        //      (проверить плейсхолдеры | для примитивов соответствие с оригинальным объектом) в originallySelfReferencedObjects
 
-        copiedObjectReferences.get().put(System.identityHashCode(newObj), newObj);
+        //Требуется чистить selfReferencedObjects после возвращение изначально запрашиваемого объекта.
+        if (originalObjHashCode == System.identityHashCode(o)) {
+            originallySelfReferencedObjects.get().clear();
+        }
         return newObj;
     }
 
     private static void getSelfReferences(Object o) throws IllegalAccessException {
-        //System.identityHashCode не гарантирует уникальность хэш-кодов.
+        //System.identityHashCode не гарантирует полную уникальность хэш-кодов.
         ArrayList<Integer> toCheckHashCodes = new ArrayList<>();
         ArrayList<Integer> selfReferences = new ArrayList<>();
         if (!(o instanceof Map<?, ?> || o instanceof Collection<?> || isWrapper(o))) {
@@ -61,7 +66,7 @@ public class DeepCopyUtil {
                 }
             }
         } else {
-            //copiedObjectReferences
+
         }
         //selfReferenceFields.get().addAll(selfReferences);
     }
@@ -75,117 +80,14 @@ public class DeepCopyUtil {
 
     private static <T> T fillNewObj(T src, T dst) {
         try {
-            //V  Ссылка на себя
-            //V  Проверка на примитивный тип данных -> //Примитивные типы
-            //V  Проверка на примитивную упаковку -> //Обертки примитивных типов
-            //V  Проверка на массивы -> //Массивы
-            //V  Проверка на коллекции -> //Коллекции
-            //V  Проверка на интерфейсы без конструктора
-            //X  Проверка на сложный тип Man -> deepCopy() else -> deepCopy()
 
-            //СДЕЛАТЬ ПРОВЕРКУ НА PROPERTIES.FINAL
-
-            //Ссылка на себя || как сделать на часть себя??
-            Field field = Man.class.getDeclaredField("self");
-            field.setAccessible(true);
-            if (field.get(src) == src) {
-                field.set(dst, dst);
-            }
-
-            //Массивы
-            field = Man.class.getDeclaredField("neighboringRoomNumbers");
-            field.setAccessible(true);
-            Object srcArr = field.get(src);
-            int len = Array.getLength(srcArr);
-            Object array = Array.newInstance(field.getType().getComponentType(), len);
-            for (int i = 0; i < len; i++) {
-                Array.set(array, i, deepCopy(Array.get(srcArr, i)));
-            }
-            field.set(dst, array);
-
-            //Примитивные типы switch-case
-            field = Man.class.getDeclaredField("age");
-            field.setAccessible(true);
-            field.set(dst, (Integer) field.get(src));
-
-            //Обертки примитивных типов switch-case
-            field = Man.class.getDeclaredField("age");
-            field.setAccessible(true);
-            Object obj = field.get(src);
-            field.set(dst, (int) obj);
-
-            //Коллекции кроме реализаций интерфейса Map
-            ArrayList<String> testArrayList = new ArrayList<>();
-            testArrayList.add("first");
-            testArrayList.add("second");
-
-            ArrayList<String> testArrayListOnList = new ArrayList<>(List.of("first", "second"));
-
-            LinkedHashSet<Double> testLinkedHashSetOnSet = new LinkedHashSet<>(Set.of(1d, 0.2));
-
-            LinkedHashSet<Double> testLinkedHashSet = new LinkedHashSet<>();
-            testLinkedHashSet.add(1d);
-            testLinkedHashSet.add(0.2);
-
-            field = Man.class.getDeclaredField("testLinkedHashSet");
-            field.setAccessible(true);
-            Collection srcCollection = (Collection) field.get(src);
-            Constructor<?> testCtor = getLeastArgsObjConstructor(field.get(src));
-            Collection<Object> testCollection = (Collection<Object>) testCtor.newInstance();
-            for (var entry : srcCollection) {
-                testCollection.add(deepCopy(entry));
-            }
-            field.set(dst, testCollection);
-
-            System.out.println("a");
-
-            //Наследники Map
-            HashMap<Integer, Integer> testHashMap = new HashMap<>();
-            testHashMap.put(1, 2);
-            testHashMap.put(3, 4);
-            HashMap<Integer, Integer> testHashMapOnMap = new HashMap<>(Map.of(1, 2, 3, 4));
-
-
-            field = Man.class.getDeclaredField("testHashMap");
-            field.setAccessible(true);
-            Map<?, ?> mapObject = (Map<?, ?>) field.get(src);
-            Map<?, ?> newMap = mapObject
-                    .entrySet()
-                    .stream()
-                    .collect(Collectors.toMap(deepCopy(Map.Entry::getKey), deepCopy(Map.Entry::getValue)));
-            field.set(dst, newMap);
-
-            System.out.println("s");
-
-            //Интерфейсы без конструктора, Set.of, List.of, Map.of
-            //Set.of, List.of -> toArray
-            //Map.of -> entrySet -> ofEntries
-            //switch-case по типу
-
-
-
-/*            if (possibleSelfRef) {
-                int hashCodeToCheck = System.identityHashCode(o);
-                Object copiedReference = deepCopyObjects.get().get(hashCodeToCheck);
-                if (copiedReference != null) {
-                    return needsToBeFilled ? copiedReference : null;
-                }
-                //Объект для референса ещё не был создан, но возможно что будет
-                else if (selfReferenceFields.get().contains(hashCodeToCheck)) {
-                    //Плейсхолдер для примитивов, null для объектов
-                    stillNeedToGetReferenced.get().put(givenField, o);
-                    if (isWrapper || oClass.isPrimitive())
-                        return createPrimitive(o);
-                    else
-                        return null;
-                }
-            }*/
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
         return dst;
     }
 
+    /***/
     private static Constructor<?> getLeastArgsObjConstructor(Object o) {
         Constructor<?>[] constructors = o.getClass().getConstructors();
         Constructor<?> shortestCtor = constructors[0];
@@ -199,6 +101,7 @@ public class DeepCopyUtil {
         return shortestCtor;
     }
 
+    /***/
     private static Object[] createBlankArgsForGivenConstructor(Constructor<?> ctor) {
         Class<?>[] ctorParamTypes = ctor.getParameterTypes();
         Object[] blankArgs = new Object[ctorParamTypes.length];

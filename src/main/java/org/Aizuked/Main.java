@@ -10,7 +10,6 @@ public class Main {
     public static void main(String[] args) throws IOException, ClassNotFoundException {
 
 
-
         Man man1 = new Man("Robert", 18, List.of("Book1", "Book2", "Book3"));
 
         man1.setNeighboringRoomNumbers(new int[]{10, 20});

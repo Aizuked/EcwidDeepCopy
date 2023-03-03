@@ -1,11 +1,9 @@
 package org.Aizuked.CopyUtils;
 
-import org.Aizuked.TestObjPackage.Man;
-
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
+import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -18,100 +16,97 @@ import java.util.stream.Collectors;
 //агрегация - особый случай ассоциации
 
 public class DeepCopyUtil {
-    //HashCode объекта поля изначального объекта -> {Field              : Object}
-    //  используется при проверке для копирования    объекта копирования  референс скопированного объекта
-    private static Integer originalObjHashCode;
-    private static final ThreadLocal<HashMap<Integer, HashMap<Field, Object>>> originallySelfReferencedObjects = new ThreadLocal<>();
+    private static ThreadLocal<Integer> originalObjHashCode = ThreadLocal.withInitial(() -> 0);
+    private static ThreadLocal<HashMap<Integer, Object>> originallySelfReferencedObjects = ThreadLocal.withInitial(HashMap::new);
 
-    public static <T> T deepCopy(T o) {
+    public static <T> T deepCopy(T o) throws InvocationTargetException, InstantiationException, IllegalAccessException {
         if (o == null)
             return null;
 
-        if (originalObjHashCode == null)
-            originalObjHashCode = System.identityHashCode(o);
-
-        //Первый метод.
         T newObj = null;
-        fillNewObj(o, newObj);
+        Class<?> cls = o.getClass();
+        int currentHashCode = System.identityHashCode(o);
 
-
-        //Добавление в allReferencesOfCopiedObjects.
-        //Проверка является ли это оригинальным объектом ->
-        //      (проверить плейсхолдеры | для примитивов соответствие с оригинальным объектом) в originallySelfReferencedObjects
-
-        //Требуется чистить selfReferencedObjects после возвращение изначально запрашиваемого объекта.
-        if (originalObjHashCode == System.identityHashCode(o)) {
-            originallySelfReferencedObjects.get().clear();
+        if (originalObjHashCode.get() == 0) {
+            originalObjHashCode.set(currentHashCode);
         }
+
+        if (originallySelfReferencedObjects.get().containsKey(currentHashCode)) {
+            newObj = (T) originallySelfReferencedObjects.get().get(currentHashCode);
+        } else if (isWrapper(o) || cls.isPrimitive()) {
+            newObj = (T) createFilledPrimitiveOrWrapper(o);
+        } else if (cls == String.class) {
+            newObj = (T) createFilledString(o);
+        } else if (cls.isArray()) {
+            newObj = (T) createFilledArray(o);
+        } else if (cls.getName().contains("java.util.ImmutableCollections$List") ||
+                cls.getName().contains("java.util.ImmutableCollections$Set") ||
+                cls.getName().contains("java.util.ImmutableCollections$MapN")) {
+            newObj = (T) createFilledImmutableCollection(o);
+        } else if (o instanceof Collection<?>) {
+            newObj = (T) createFilledCollection(o);
+        } else if (o instanceof Map<?, ?>) {
+            newObj = (T) createFilledMap(o);
+        } else {
+            newObj = createBlankObjCopy(o);
+            originallySelfReferencedObjects.get().putIfAbsent(currentHashCode, newObj);
+            for (Field field : cls.getDeclaredFields()) {
+                field.setAccessible(true);
+                field.set(newObj, deepCopy(field.get(o)));
+                field.setAccessible(false);
+            }
+        }
+
+        originallySelfReferencedObjects.get().putIfAbsent(System.identityHashCode(o), newObj);
+
+        if (originalObjHashCode.get() == System.identityHashCode(o)) {
+            //вытащить поля суперклассов до Object
+            if (!newObj.getClass().isArray()) {
+                Class<?> leveledSuperClass = newObj.getClass().getSuperclass();
+                while (leveledSuperClass != Object.class) {
+                    for (Field field : leveledSuperClass.getDeclaredFields()) {
+                        field.setAccessible(true);
+                        field.set(newObj, deepCopy(field.get(o)));
+                        field.setAccessible(false);
+                    }
+                    leveledSuperClass = leveledSuperClass.getSuperclass();
+                }
+            }
+
+            originalObjHashCode.remove();
+            originallySelfReferencedObjects.remove();
+        }
+
         return newObj;
     }
 
-    private static void getSelfReferences(Object o) throws IllegalAccessException {
-        //System.identityHashCode не гарантирует полную уникальность хэш-кодов.
-        ArrayList<Integer> toCheckHashCodes = new ArrayList<>();
-        ArrayList<Integer> selfReferences = new ArrayList<>();
-        if (!(o instanceof Map<?, ?> || o instanceof Collection<?> || isWrapper(o))) {
-            for (Field field : o.getClass().getFields()) {
-                if (!Modifier.isFinal(field.getModifiers()) && !field.getClass().isPrimitive()) {
-                    Object objToCheck = field.get(o);
-                    if (objToCheck != null) {
-                        int currHashCode = System.identityHashCode(objToCheck);
-//                        if (toCheckHashCodes.contains(currHashCode) &&
-//                                !selfReferenceFields.get().contains(currHashCode)) {
-//                            selfReferences.add(currHashCode);
-//                        } else {
-//                            toCheckHashCodes.add(currHashCode);
-//                        }
-                    }
-                }
-            }
-        } else {
-
-        }
-        //selfReferenceFields.get().addAll(selfReferences);
+    /***/
+    private static <T> Constructor<?> getLeastArgsObjConstructor(T o) {
+        return Arrays.stream(o.getClass().getConstructors())
+                .min(Comparator.comparing(obj -> obj.getParameterTypes().length))
+                .orElseThrow(RuntimeException::new);
     }
 
+    /***/
+    private static Object[] createBlankArgsForGivenConstructor(Constructor<?> ctor) {
+        return Arrays.stream(ctor.getParameterTypes())
+                .map(i -> i.isPrimitive() ? createPlaceHolderPrimitive(i) : null)
+                .toArray();
+    }
+
+    /***/
+    private static <T> T createBlankObjCopy(T o)
+            throws InvocationTargetException, InstantiationException, IllegalAccessException {
+        Constructor<T> ctor = (Constructor<T>) getLeastArgsObjConstructor(o);
+        return ctor.newInstance(createBlankArgsForGivenConstructor(ctor));
+    }
+
+    /***/
     private static boolean isWrapper(Object o) {
         Class<?> type = o.getClass();
         return type == Double.class || type == Float.class ||
                 type == Long.class || type == Integer.class || type == Short.class ||
                 type == Character.class || type == Byte.class || type == Boolean.class;
-    }
-
-    private static <T> T fillNewObj(T src, T dst) {
-        try {
-
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        return dst;
-    }
-
-    /***/
-    private static Constructor<?> getLeastArgsObjConstructor(Object o) {
-        Constructor<?>[] constructors = o.getClass().getConstructors();
-        Constructor<?> shortestCtor = constructors[0];
-
-        for (var ctor : constructors) {
-            if (ctor.getParameterTypes().length < shortestCtor.getParameterTypes().length) {
-                shortestCtor = ctor;
-            }
-        }
-
-        return shortestCtor;
-    }
-
-    /***/
-    private static Object[] createBlankArgsForGivenConstructor(Constructor<?> ctor) {
-        Class<?>[] ctorParamTypes = ctor.getParameterTypes();
-        Object[] blankArgs = new Object[ctorParamTypes.length];
-
-        for (int i = 0; i < ctorParamTypes.length; i++) {
-            blankArgs[i] = ctorParamTypes[i].isPrimitive() ?
-                    createPlaceHolderPrimitive(ctorParamTypes[i]) : null;
-        }
-
-        return blankArgs;
     }
 
     /***/
@@ -137,31 +132,9 @@ public class DeepCopyUtil {
         }
     }
 
-    private static Object createObjCopy(Object o) {
-        Object newObj = null;
-        Class<?> oClass = o.getClass();
-
-/*        if (isWrapper(o)) {
-            return createPrimitive(o);
-        } else if () {
-
-        }*/
-
-        return newObj;
-
-        //X  Ссылка на себя
-        //М  Проверка на примитивный тип данных
-        //М  Проверка на примитивную упаковку
-        //М  Проверка на массивы
-        //М  Проверка на коллекции
-        //М  Проверка на интерфейсы без конструктора
-        //М  Проверка на строки
-        //X  Проверка на сложный тип Man -> deepCopy() else -> deepCopy()
-
-    }
-
     /***/
-    public static Object createFilledArray(Object o) {
+    private static Object createFilledArray(Object o)
+            throws InvocationTargetException, InstantiationException, IllegalAccessException {
         //Возможно нужно дергать param1 = field.getType().getComponentType() для Array.newInstance(param1, arrLen)
         int arrLen = Array.getLength(o);
         Object array = Array.newInstance(o.getClass().getComponentType(), arrLen);
@@ -174,33 +147,32 @@ public class DeepCopyUtil {
     }
 
     /***/
-    private static Object createFilledCollection(Object o) {
-        Constructor<?> testCtor = getLeastArgsObjConstructor(o);
-        Collection copy = null;
-
-        try {
-            copy = (Collection) testCtor.newInstance();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+    private static Object createFilledCollection(Object o)
+            throws InvocationTargetException, InstantiationException, IllegalAccessException {
+        Collection copy = (Collection) getLeastArgsObjConstructor(o).newInstance();
 
         for (var entry : (Collection) o) {
             copy.add(deepCopy(entry));
         }
+
         return copy;
     }
 
     /***/
-    private static Object createFilledMap(Object o) {
-        Map<?, ?> mapObject = (Map<?, ?>) o;
-        return mapObject
-                .entrySet()
-                .stream()
-                .collect(Collectors.toMap(deepCopy(Map.Entry::getKey), deepCopy(Map.Entry::getValue)));
+    private static Object createFilledMap(Object o)
+            throws InvocationTargetException, InstantiationException, IllegalAccessException {
+        Map copy = (Map) getLeastArgsObjConstructor(o).newInstance();
+
+        for (var entry : ((Map<?, ?>) o).entrySet()) {
+            copy.put(deepCopy(entry.getKey()), deepCopy(entry.getValue()));
+        }
+
+        return copy;
     }
 
     /***/
-    private static Object createFilledImmutableCollection(Object o) {
+    private static Object createFilledImmutableCollection(Object o)
+            throws InvocationTargetException, InstantiationException, IllegalAccessException {
         //Поскольку .of методы возвращают Immutable объекты не обязательно делать deepCopy?
         if (o instanceof List<?> copy) {
             return List.of(deepCopy(copy.toArray()));
@@ -209,7 +181,13 @@ public class DeepCopyUtil {
         } else if (o instanceof Map<?, ?> copy) {
             return Map.ofEntries((Map.Entry<?, ?>[]) copy.entrySet()
                     .stream()
-                    .map(i -> Map.entry(deepCopy(i.getKey()), deepCopy(i.getValue())))
+                    .map(i -> {
+                        try {
+                            return Map.entry(deepCopy(i.getKey()), deepCopy(i.getValue()));
+                        } catch (InvocationTargetException | InstantiationException | IllegalAccessException e) {
+                            throw new RuntimeException(e);
+                        }
+                    })
                     .toArray());
         } else {
             return null;
@@ -245,9 +223,7 @@ public class DeepCopyUtil {
         //String - неизменяемый объект, пересоздаваемый в памяти по подобию изначального референса.
         //Сможет ли сбощик мусора уничтожить использующий одинаковую ссылку на строку неиспользуемый объект?
         String copy = (String) o;
-        copy = String.copyValueOf(copy.toCharArray());
-        return copy;
+        return String.copyValueOf(copy.toCharArray());
     }
-
 
 }

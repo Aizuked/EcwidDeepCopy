@@ -4,11 +4,11 @@ import org.Aizuked.CopyUtils.DeepCopyUtil;
 import org.Aizuked.TestObjPackage.Man;
 
 import java.io.*;
+import java.lang.reflect.InvocationTargetException;
 import java.util.List;
 
 public class Main {
-    public static void main(String[] args) throws IOException, ClassNotFoundException {
-
+    public static void main(String[] args) {
 
         Man man1 = new Man("Robert", 18, List.of("Book1", "Book2", "Book3"));
 
@@ -16,11 +16,25 @@ public class Main {
         man1.setFavoriteIceCreamToppings(new String[]{"Chocolate", "Vanilla"});
 
         man1.setParentNames(List.of("Emma", "John"));
+
+        Man man2 = null;
+
+        try {
+            man2 = DeepCopyUtil.deepCopy(man1);
+        } catch (InvocationTargetException | InstantiationException | IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+
+        System.out.println();
+
+
+
+
        /* Man man2 = CopyUtils.deepCopy(man1);
 
         System.out.println(man1 == man2);*/
 
-        Man man3 = DeepCopyUtil.deepCopy(man1);
+        //Man man3 = DeepCopyUtil.deepCopy(man1);
 /*
         int i = 1;
         int b = CopyUtils.deepCopy(i);

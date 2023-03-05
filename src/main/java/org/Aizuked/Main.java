@@ -63,20 +63,11 @@ public class Main {
         Man man2 = null;
 
         try {
-            man2 = DeepCopyUtil.deepCopy(man1, new HashMap<>());
-        } catch (InvocationTargetException | InstantiationException | IllegalAccessException e) {
-            throw new RuntimeException(e);
-        }
-
-
-        Cat cat2;
-        try {
-            cat2 = DeepCopyUtil.deepCopy(cat, new HashMap<>());
+            man2 = DeepCopyUtil.deepCopy(man1);
         } catch (InvocationTargetException | InstantiationException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
 
         System.out.println();
-
     }
 }

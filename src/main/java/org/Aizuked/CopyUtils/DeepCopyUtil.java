@@ -1,9 +1,6 @@
 package org.Aizuked.CopyUtils;
 
-import java.lang.reflect.Array;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.*;
 import java.util.*;
 
 /**
@@ -30,6 +27,18 @@ import java.util.*;
 public class DeepCopyUtil {
 
     /**
+     * Служит входной точкой для запуска процесса глубокого копирования объекта.
+     * Метод нужен для сокрытия реализации хранения и обработки рекурсивно создаваемых референсов.
+     *
+     * @param o                               объект для копирования
+     * @return newObj     полученный в результате глубокого копирования объект
+     */
+    public static <T> T deepCopy(T o)
+            throws InvocationTargetException, InstantiationException, IllegalAccessException {
+        return deepCopy(o, new HashMap<>());
+    }
+
+    /**
      * Возвращает глубокую копию передеанного в метод объекта, полученную средствами рефлексии языка.
      * <p>
      * T o является экземпляром: указателя на данные; примитивного типа данных; обёртки примитивного типа данных;
@@ -49,7 +58,8 @@ public class DeepCopyUtil {
      * @throws InstantiationException    s
      * @throws IllegalAccessException    s
      */
-    public static <T> T deepCopy(T o, HashMap<Integer, Object> originallySelfReferencedObjects)
+
+    private static <T> T deepCopy(T o, HashMap<Integer, Object> originallySelfReferencedObjects)
             throws InvocationTargetException, InstantiationException, IllegalAccessException {
         if (o == null)
             return null;
@@ -78,9 +88,12 @@ public class DeepCopyUtil {
             newObj = createBlankObjCopy(o);
             originallySelfReferencedObjects.putIfAbsent(currentHashCode, newObj);
             for (Field field : cls.getDeclaredFields()) {
+                boolean isInitiallyPrivate = Modifier.isPrivate(field.getModifiers());
                 field.setAccessible(true);
                 field.set(newObj, deepCopy(field.get(o), originallySelfReferencedObjects));
-                field.setAccessible(false);
+
+                if (isInitiallyPrivate)
+                    field.setAccessible(false);
             }
             setSuperClassFields(newObj, o, originallySelfReferencedObjects);
         }

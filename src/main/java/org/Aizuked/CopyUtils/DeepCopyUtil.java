@@ -63,7 +63,7 @@ public class DeepCopyUtil {
         } else if (isWrapper(o) || cls.isPrimitive()) {
             newObj = (T) createFilledPrimitiveOrWrapper(o);
         } else if (cls == String.class) {
-            newObj = (T) createFilledString(o);
+            newObj = o;
         } else if (cls.isArray()) {
             newObj = (T) createFilledArray(o, originallySelfReferencedObjects);
         } else if (cls.getName().contains("java.util.ImmutableCollections$List") ||
@@ -307,20 +307,6 @@ public class DeepCopyUtil {
         } else {
             return null;
         }
-    }
-
-    /**
-     * Вовзращает копию строки Object o, полученную посредством создания новой строки из массива
-     * примитивного типа char.
-     *
-     * @param o копируемая строка
-     * @return копия строки
-     */
-    private static Object createFilledString(Object o) {
-        //String - неизменяемый объект, пересоздаваемый в памяти по подобию изначального референса.
-        //Сможет ли сбощик мусора уничтожить использующий одинаковую ссылку на строку неиспользуемый объект?
-        String copy = (String) o;
-        return String.copyValueOf(copy.toCharArray());
     }
 
 }

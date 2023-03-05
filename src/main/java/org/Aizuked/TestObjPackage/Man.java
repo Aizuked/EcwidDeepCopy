@@ -10,9 +10,36 @@ public class Man extends Animal {
     private String[] favoriteIceCreamToppings;
     private ArrayList<Animal> animals;
     private Man self;
-    ArrayList<String> testArrayList;
-    HashMap<Integer, Integer> testHashMap;
-    LinkedHashSet<Double> testLinkedHashSet;
+    private ArrayList<String> testArrayList;
+    private Map<String, String> testMap;
+    private HashMap<Integer, Integer> testHashMap;
+    private LinkedHashSet<Double> testLinkedHashSet;
+    private Set<String> testSet;
+    private HashSet<String> testHashSet;
+
+    public Set<String> getTestSet() {
+        return testSet;
+    }
+
+    public void setTestSet(Set<String> testSet) {
+        this.testSet = testSet;
+    }
+
+    public HashSet<String> getTestHashSet() {
+        return testHashSet;
+    }
+
+    public void setTestHashSet(HashSet<String> testHashSet) {
+        this.testHashSet = testHashSet;
+    }
+
+    public Map<String, String> getTestMap() {
+        return testMap;
+    }
+
+    public void setTestMap(Map<String, String> testMap) {
+        this.testMap = testMap;
+    }
 
     public ArrayList<String> getTestArrayList() {
         return testArrayList;
@@ -39,6 +66,7 @@ public class Man extends Animal {
     }
 
     public Man(String name, int age, List<String> favoriteBooks) {
+        this.sound = "human sounds";
         this.name = name;
         this.age = age;
         this.favoriteBooks = favoriteBooks;
@@ -101,14 +129,4 @@ public class Man extends Animal {
         this.favoriteBooks = favoriteBooks;
     }
 
-    @Override
-    public String toString() {
-        return "Man{" +
-                "name='" + name + '\'' +
-                ", age=" + age +
-                ", favoriteBooks=" + favoriteBooks +
-                ", neighboringRoomNumbers=" + Arrays.toString(neighboringRoomNumbers) +
-                ", favoriteIceCreamToppings=" + Arrays.toString(favoriteIceCreamToppings) +
-                '}';
-    }
 }

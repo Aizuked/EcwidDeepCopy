@@ -4,7 +4,7 @@ import java.util.List;
 
 public abstract class Animal {
     protected String sound = "Unknown animal sound";
-    private short numberOfLegs = 128;
+    private Short numberOfLegs = 128;
     private boolean ableToSpeak;
     private List<String> parentNames;
     private Animal owner;

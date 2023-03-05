@@ -1,11 +1,13 @@
 package org.Aizuked;
 
 import org.Aizuked.CopyUtils.DeepCopyUtil;
+import org.Aizuked.TestObjPackage.Animal;
+import org.Aizuked.TestObjPackage.Cat;
+import org.Aizuked.TestObjPackage.Dog;
 import org.Aizuked.TestObjPackage.Man;
 
-import java.io.*;
 import java.lang.reflect.InvocationTargetException;
-import java.util.List;
+import java.util.*;
 
 public class Main {
     public static void main(String[] args) {
@@ -15,39 +17,66 @@ public class Main {
         man1.setNeighboringRoomNumbers(new int[]{10, 20});
         man1.setFavoriteIceCreamToppings(new String[]{"Chocolate", "Vanilla"});
 
+        ArrayList<String> testArrayList = new ArrayList<>();
+        testArrayList.add("first");
+        testArrayList.add("second");
+        man1.setTestArrayList(testArrayList);
+
+        man1.setTestMap(Map.of("qwe", "ewq", "asd", "dsa"));
+
+        HashMap<Integer, Integer> testHashMap = new HashMap<>();
+        testHashMap.put(128, 129);
+        testHashMap.put(130, 131);
+        man1.setTestHashMap(testHashMap);
+
+        Set<String> testSet = Set.of("true", "false");
+        man1.setTestSet(testSet);
+
+        HashSet<String> testHashSet = new HashSet<>();
+        testHashSet.add("true");
+        testHashSet.add("false");
+        man1.setTestHashSet(testHashSet);
+
+        man1.setNumberOfLegs((short)2);
+        man1.setAbleToSpeak(true);
         man1.setParentNames(List.of("Emma", "John"));
+        man1.setNumberOfLegs((short)129);
+        man1.setOwner(man1);
+
+        ArrayList<Animal> animals = new ArrayList<>();
+        Cat cat = new Cat();
+        cat.setAbleToSpeak(false);
+        cat.setOwner(man1);
+        cat.setNumberOfLegs((short)4);
+        cat.setParentNames(List.of("Puss in boots 1", "Puss in boots 2"));
+        animals.add(cat);
+
+        Dog brian = new Dog();
+        brian.setAbleToSpeak(true);
+        brian.setOwner(cat);
+        brian.setNumberOfLegs((short) 3);
+        brian.setParentNames(new ArrayList<>(Arrays.asList("Isabella", "Quqly")));
+        animals.add(brian);
+
+        man1.setAnimals(animals);
 
         Man man2 = null;
 
         try {
-            man2 = DeepCopyUtil.deepCopy(man1);
+            man2 = DeepCopyUtil.deepCopy(man1, new HashMap<>());
+        } catch (InvocationTargetException | InstantiationException | IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+
+
+        Cat cat2;
+        try {
+            cat2 = DeepCopyUtil.deepCopy(cat, new HashMap<>());
         } catch (InvocationTargetException | InstantiationException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
 
         System.out.println();
 
-
-
-
-       /* Man man2 = CopyUtils.deepCopy(man1);
-
-        System.out.println(man1 == man2);*/
-
-        //Man man3 = DeepCopyUtil.deepCopy(man1);
-/*
-        int i = 1;
-        int b = CopyUtils.deepCopy(i);
-        System.out.println(i == b);*/
-
-/*        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        ObjectOutputStream out = new ObjectOutputStream(bos);
-        out.writeObject(man1);
-
-        ByteArrayInputStream bis = new ByteArrayInputStream(bos.toByteArray());
-        ObjectInputStream in = new ObjectInputStream(bis);
-        Man copied = (Man) in.readObject();
-
-        System.out.println(man1 == copied);*/
     }
 }

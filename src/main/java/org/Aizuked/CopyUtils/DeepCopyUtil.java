@@ -88,11 +88,11 @@ public class DeepCopyUtil {
             newObj = createBlankObjCopy(o);
             originallySelfReferencedObjects.putIfAbsent(currentHashCode, newObj);
             for (Field field : cls.getDeclaredFields()) {
-                boolean isInitiallyPrivate = Modifier.isPrivate(field.getModifiers());
+                boolean isAccessible = field.canAccess(o);
                 field.setAccessible(true);
                 field.set(newObj, deepCopy(field.get(o), originallySelfReferencedObjects));
 
-                if (isInitiallyPrivate)
+                if (!isAccessible)
                     field.setAccessible(false);
             }
             setSuperClassFields(newObj, o, originallySelfReferencedObjects);

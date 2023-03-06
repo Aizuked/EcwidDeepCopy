@@ -117,9 +117,11 @@ public class DeepCopyUtil {
         Class<?> leveledSuperClass = o.getClass().getSuperclass();
         while (leveledSuperClass != Object.class) {
             for (Field field : leveledSuperClass.getDeclaredFields()) {
+                boolean isAccessible = field.canAccess(o);
                 field.setAccessible(true);
                 field.set(o, deepCopy(field.get(src), originallySelfReferencedObjects));
-                field.setAccessible(false);
+                if (!isAccessible)
+                    field.setAccessible(false);
             }
             leveledSuperClass = leveledSuperClass.getSuperclass();
         }

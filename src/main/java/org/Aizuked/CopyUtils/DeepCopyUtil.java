@@ -7,8 +7,9 @@ import java.util.*;
  * Класс утилиты создания глубокой копии объекта, целиком основывающийся на средствах рефлексии языка Java.
  * <p>
  * Глубокая копия объекта подразумевает, что полученная копия не содержит ссылок на объект копирования.
- * Однако некоторые объекты, в силу внутреннего устройства JVM, при создании возвращают ссылку вместо создания нового
- * объекта. Примерами таких объектов являются: числа в диапазоне [-128; 127], строка "", объекты Class и т. д.
+ * Однако некоторые объекты, в силу внутреннего устройства JVM, при попытке инициализации возвращают ссылку вместо
+ * создания нового объекта. Примерами таких объектов являются: числа в диапазоне [-128; 127], строка "",
+ * объекты Class и т. д.
  * <p>
  * Важно отметить, что объекты, следующие шаблону проектирования Singleton, имеют смысл лишь при следовании
  * программистом парадигмы данного паттерна, следовательно не должны быть копированы данным способом.
@@ -115,7 +116,7 @@ public class DeepCopyUtil {
     private static void setSuperClassFields(Object o, Object src, HashMap<Integer, Object> originallySelfReferencedObjects)
             throws IllegalAccessException, InvocationTargetException, InstantiationException {
         Class<?> leveledSuperClass = o.getClass().getSuperclass();
-        while (leveledSuperClass != Object.class) {
+        while (leveledSuperClass != Object.class && leveledSuperClass != null) {
             for (Field field : leveledSuperClass.getDeclaredFields()) {
                 boolean isAccessible = field.canAccess(o);
                 field.setAccessible(true);

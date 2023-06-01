@@ -11,15 +11,18 @@ import java.util.*;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Man {
+public class ManM extends AnimalM {
     private String name;
     private int age;
     private ArrayList<String> favoriteBooks;
     private int[] neighboringRoomNumbers;
     private String[] favoriteIceCreamToppings;
-    private ArrayList<Animal> animals;
+    private ArrayList<AnimalM> animals;
+    private ManM self;
     private ArrayList<String> testArrayList;
+    private Map<String, String> testMap;
     private HashMap<Integer, Integer> testHashMap;
     private LinkedHashSet<Double> testLinkedHashSet;
+    private Set<String> testSet;
     private HashSet<String> testHashSet;
 }

@@ -120,7 +120,11 @@ public class DeepCopyUtil {
             for (Field field : leveledSuperClass.getDeclaredFields()) {
                 boolean isAccessible = field.canAccess(o);
                 field.setAccessible(true);
-                field.set(o, deepCopy(field.get(src), originallySelfReferencedObjects));
+                try {
+                    field.set(o, deepCopy(field.get(src), originallySelfReferencedObjects));
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
                 if (!isAccessible)
                     field.setAccessible(false);
             }
